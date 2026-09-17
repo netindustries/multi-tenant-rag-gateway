@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="api.netindustries.net/api.netindustries.net.csproj" Id="b2780e8a-4dd1-4f26-8fe2-1378c90d4aec" />
+  <Project Path="MultiTenantGateway.App/MultiTenantGateway.App.csproj" />
+  <Project Path="MultiTenantGateway.Core/MultiTenantGateway.Core.csproj" />
+</Solution>

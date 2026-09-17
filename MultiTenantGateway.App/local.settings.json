@@ -1,0 +1,13 @@
+{
+	"IsEncrypted": false,
+	"Values": {
+		"AzureWebJobsStorage": "UseDevelopmentStorage=true",
+		"FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+		"ClientStorageConnection": "UseDevelopmentStorage=true",
+
+		"GatewayConfiguration:AzureKeyVaultUri": "https://azure.net",
+		"GatewayConfiguration:AzureTenantId": "80ada64c-9bb6-4340-b979-83e0d8eb75d8",
+		"GatewayConfiguration:AzureSearchEndpoint": "https://windows.net",
+		"GatewayConfiguration:AzureLanguageEndpoint": "https://azure.com"
+	}
+}

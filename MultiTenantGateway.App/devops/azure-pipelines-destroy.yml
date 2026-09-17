@@ -1,0 +1,52 @@
+﻿trigger: none 
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  terraform-dir: '$(System.DefaultWorkingDirectory)/MultiTenantGateway.App/devops/terraform'
+  bk-rg: 'free-tfstate-rg'
+  bk-storage: 'freetfstate243a36' 
+  bk-container: 'tfstate-container'
+  bk-key: 'prod.terraform.tfstate'
+
+stages:
+- stage: Infrastructure_Purge
+  jobs:
+  - job: Destroy_All_Resources
+    steps:
+    - task: DownloadSecureFile@1
+      name: clientMetadataFile
+      inputs: { secureFile: 'clients.json' }
+
+    - script: |
+        JSON_PAYLOAD=$(jq -c . $(clientMetadataFile.secureFilePath))
+        echo "##vso[task.setvariable var=TF_VAR_client_config_json]$JSON_PAYLOAD"
+      displayName: 'Inject Target Matrix to Memory Space'
+
+    - task: TerraformInstaller@1
+      inputs: { terraformVersion: 'latest' }
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(terraform-dir)'
+        backendServiceArm: 'azure-service-connection'
+        backendAzureRmResourceGroupName: '$(bk-rg)'
+        backendAzureRmStorageAccountName: '$(bk-storage)'
+        backendAzureRmContainerName: '$(bk-container)'
+        backendAzureRmKey: '$(bk-key)'
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'destroy'
+        workingDirectory: '$(terraform-dir)'
+        commandOptions: '-var=\"client_config_json=$(TF_VAR_client_config_json)\"'
+        environmentServiceNameAzureRM: 'azure-service-connection'
+
+    - script: |
+        bash devops/cleanup.sh
+      displayName: 'Clean Up Bootstrap Infrastructure (Storage Backend)'
+      condition: succeeded()
