@@ -1,0 +1,66 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+- group: 'GoDaddy-Production-Secrets'
+
+steps:
+- task: NuGetToolInstaller@1
+  displayName: 'Install NuGet Build Tools'
+
+- task: NuGetCommand@2
+  displayName: 'Isolate Restore to API Project'
+  inputs:
+    command: 'restore'
+    restoreSolution: '**/api.netindustries.net.csproj'
+    feedsToUse: 'select'
+    # Keeping it explicitly lowercase to match your file system structure
+    restoreDirectory: '$(Build.SourcesDirectory)/packages' 
+
+- task: Replacetokens@6
+  displayName: 'Inject Production Tokens into App Settings and C# Class Binaries'
+  inputs:
+    rootDirectory: '$(Build.SourcesDirectory)'
+    targetFiles: |
+      **/Web.config
+      **/CryptographyEngine.cs
+    encoding: 'auto'
+    tokenPattern: 'custom'
+    tokenPrefix: '__'
+    tokenSuffix: '__'
+
+- task: VSBuild@1
+  displayName: 'Compile API Website to Deployable Web Package'
+  inputs:
+    solution: '**/api.netindustries.net.csproj' 
+    # REMOVED: /p:UseMerge=true and /p:SingleAssemblyName
+    # RETAINED: /p:PrecompileBeforePublish=true and /p:EnableUpdateable=false
+    msbuildArgs: '/p:Configuration=Release /p:Platform="Any CPU" /p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DeployIisAppPath="$(NetIndustriesSiteName)" /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:PrecompileBeforePublish=true /p:EnableUpdateable=false'
+    platform: 'Any CPU'
+    configuration: 'Release'
+
+- task: PowerShell@2
+  displayName: 'Publish Web Package directly to api.netindustries.net'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $msdeploy = "${env:ProgramFiles}\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+      
+      # FIX: Wrap the environment password string variable inside literal single-quoted double quotes
+      # This treats the complex symbols as a raw, unbroken text stream during execution
+      $destinationString = "auto,computerName=$(NetIndustriesPublishUrl)?site=$(NetIndustriesSiteName),userName=$(NetIndustriesUsername),password='""$env:MAPPED_DEPLOY_PASSWORD""',authType=Basic"
+      
+      $arguments = @(
+          "-verb:sync",
+          "-source:package=$(build.artifactStagingDirectory)\WebApp.zip",
+          "-dest:$destinationString",
+          "-allowUntrusted"
+      )
+      
+      # Execute msdeploy safely via literal string encapsulation
+      & $msdeploy $arguments
+  env:
+    MAPPED_DEPLOY_PASSWORD: $(NetIndustriesPassword)
